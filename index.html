@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browser Games</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #1a1a2e;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #eee;
+    padding: 40px 16px;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    color: #888;
+    font-size: 1rem;
+    margin-bottom: 40px;
+  }
+
+  .games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  .game-card {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 28px 24px;
+    text-decoration: none;
+    color: #eee;
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    border: 2px solid transparent;
+  }
+
+  .game-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    border-color: #3a506b;
+  }
+
+  .game-icon {
+    font-size: 3rem;
+    line-height: 1;
+  }
+
+  .game-title {
+    font-size: 1.2rem;
+    font-weight: bold;
+  }
+
+  .game-desc {
+    font-size: 0.85rem;
+    color: #888;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .game-card:nth-child(1):hover { border-color: #e53935; }
+  .game-card:nth-child(2):hover { border-color: #4caf50; }
+  .game-card:nth-child(3):hover { border-color: #42a5f5; }
+  .game-card:nth-child(4):hover { border-color: #66bb6a; }
+</style>
+</head>
+<body>
+  <h1>Browser Games</h1>
+  <p class="subtitle">Pick a game to play</p>
+
+  <div class="games-grid">
+    <a class="game-card" href="connect-four.html">
+      <span class="game-icon">🔴</span>
+      <span class="game-title">Connect Four</span>
+      <span class="game-desc">Drop discs to connect four in a row</span>
+    </a>
+
+    <a class="game-card" href="snake.html">
+      <span class="game-icon">🐍</span>
+      <span class="game-title">Snake</span>
+      <span class="game-desc">Eat food and grow without hitting yourself</span>
+    </a>
+
+    <a class="game-card" href="tetris.html">
+      <span class="game-icon">🧱</span>
+      <span class="game-title">Tetris</span>
+      <span class="game-desc">Stack and clear falling blocks</span>
+    </a>
+
+    <a class="game-card" href="froschis.html">
+      <span class="game-icon">🐸</span>
+      <span class="game-title">Fröschis</span>
+      <span class="game-desc">Sort your cards 1–8 with frog wildcards</span>
+    </a>
+  </div>
+</body>
+</html>

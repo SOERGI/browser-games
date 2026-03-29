@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect Four</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #1a1a2e;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #eee;
+    gap: 20px;
+  }
+
+  h1 { font-size: 2rem; letter-spacing: 2px; }
+
+  #status {
+    font-size: 1.25rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #status .disc {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .board {
+    background: #0057b8;
+    padding: 12px;
+    border-radius: 12px;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  }
+
+  .cell {
+    width: 64px;
+    height: 64px;
+    background: #1a1a2e;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background .15s;
+    position: relative;
+  }
+
+  .cell.red    { background: #e63946; }
+  .cell.yellow { background: #ffd60a; }
+
+  .cell.preview-red    { background: rgba(230,57,70,.3); }
+  .cell.preview-yellow { background: rgba(255,214,10,.3); }
+
+  .cell.win {
+    animation: pulse .6s ease-in-out infinite alternate;
+  }
+
+  @keyframes pulse {
+    from { transform: scale(1); }
+    to   { transform: scale(1.1); }
+  }
+
+  @keyframes drop {
+    from { transform: translateY(calc(-72px * var(--drop-rows))); opacity: .7; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+
+  .cell.dropping {
+    animation: drop .3s ease-in;
+  }
+
+  button#reset {
+    padding: 10px 28px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    background: #e63946;
+    color: #fff;
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: 1px;
+    transition: background .2s;
+  }
+
+  button#reset:hover { background: #c1121f; }
+
+  @media (max-width: 560px) {
+    .cell { width: 44px; height: 44px; }
+    .board { gap: 6px; padding: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>CONNECT FOUR</h1>
+<div id="status"></div>
+<div class="board" id="board"></div>
+<button id="reset">NEW GAME</button>
+
+<script>
+const ROWS = 6;
+const COLS = 7;
+const EMPTY = 0;
+const RED = 1;
+const YELLOW = 2;
+
+let board, currentPlayer, gameOver;
+
+function init() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY));
+  currentPlayer = RED;
+  gameOver = false;
+  render();
+  updateStatus();
+}
+
+function colorClass(player) {
+  return player === RED ? 'red' : 'yellow';
+}
+
+function playerName(player) {
+  return player === RED ? 'Red' : 'Yellow';
+}
+
+function updateStatus(msg) {
+  const el = document.getElementById('status');
+  if (msg) {
+    el.innerHTML = msg;
+  } else {
+    el.innerHTML = `<span class="disc" style="background:${currentPlayer === RED ? '#e63946' : '#ffd60a'}"></span> ${playerName(currentPlayer)}'s turn`;
+  }
+}
+
+function lowestEmptyRow(col) {
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r][col] === EMPTY) return r;
+  }
+  return -1;
+}
+
+function dropDisc(col) {
+  if (gameOver) return;
+  const row = lowestEmptyRow(col);
+  if (row === -1) return;
+
+  board[row][col] = currentPlayer;
+  render(col, row);
+
+  const winCells = checkWin(row, col);
+  if (winCells) {
+    gameOver = true;
+    highlightWin(winCells);
+    updateStatus(`<span class="disc" style="background:${currentPlayer === RED ? '#e63946' : '#ffd60a'}"></span> ${playerName(currentPlayer)} wins!`);
+    return;
+  }
+
+  if (board[0].every((_, c) => lowestEmptyRow(c) === -1)) {
+    gameOver = true;
+    updateStatus("It's a draw!");
+    return;
+  }
+
+  currentPlayer = currentPlayer === RED ? YELLOW : RED;
+  updateStatus();
+}
+
+function checkWin(row, col) {
+  const directions = [
+    [0, 1],   // horizontal
+    [1, 0],   // vertical
+    [1, 1],   // diagonal ↘
+    [1, -1],  // diagonal ↙
+  ];
+  const player = board[row][col];
+
+  for (const [dr, dc] of directions) {
+    let cells = [[row, col]];
+    for (const sign of [1, -1]) {
+      for (let i = 1; i < 4; i++) {
+        const r = row + dr * i * sign;
+        const c = col + dc * i * sign;
+        if (r < 0 || r >= ROWS || c < 0 || c >= COLS) break;
+        if (board[r][c] !== player) break;
+        cells.push([r, c]);
+      }
+    }
+    if (cells.length >= 4) return cells;
+  }
+  return null;
+}
+
+function highlightWin(cells) {
+  for (const [r, c] of cells) {
+    const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+    if (cell) cell.classList.add('win');
+  }
+}
+
+function render(dropCol, dropRow) {
+  const boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+
+      if (board[r][c] === RED) cell.classList.add('red');
+      else if (board[r][c] === YELLOW) cell.classList.add('yellow');
+
+      if (dropCol === c && dropRow === r) {
+        cell.classList.add('dropping');
+        cell.style.setProperty('--drop-rows', dropRow);
+      }
+
+      cell.addEventListener('click', () => dropDisc(c));
+      cell.addEventListener('mouseenter', () => previewColumn(c));
+      cell.addEventListener('mouseleave', clearPreview);
+
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+function previewColumn(col) {
+  if (gameOver) return;
+  const row = lowestEmptyRow(col);
+  if (row === -1) return;
+  const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+  if (cell && board[row][col] === EMPTY) {
+    cell.classList.add(`preview-${colorClass(currentPlayer)}`);
+  }
+}
+
+function clearPreview() {
+  document.querySelectorAll('.cell').forEach(c => {
+    c.classList.remove('preview-red', 'preview-yellow');
+  });
+}
+
+document.getElementById('reset').addEventListener('click', init);
+init();
+</script>
+</body>
+</html>

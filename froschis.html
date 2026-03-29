@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fröschis</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    background: #1a1a2e;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #eee;
+    overflow-x: hidden;
+  }
+
+  #app {
+    width: 100%;
+    max-width: 900px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ===== SETUP SCREEN ===== */
+  #setup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    margin-top: 80px;
+  }
+
+  #setup h1 { font-size: 2.5rem; }
+  #setup p { color: #aaa; font-size: 1.1rem; }
+
+  .setup-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    background: #16213e;
+    padding: 32px 40px;
+    border-radius: 16px;
+  }
+
+  .setup-form label { font-size: 1rem; color: #ccc; }
+
+  .count-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .count-btn {
+    width: 48px;
+    height: 48px;
+    border: 2px solid #3a506b;
+    border-radius: 10px;
+    background: transparent;
+    color: #eee;
+    font-size: 1.25rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .count-btn:hover { border-color: #4caf50; }
+  .count-btn.active {
+    background: #4caf50;
+    border-color: #4caf50;
+    color: #fff;
+  }
+
+  #start-btn {
+    padding: 12px 40px;
+    border: none;
+    border-radius: 10px;
+    background: #4caf50;
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  #start-btn:hover { background: #43a047; }
+
+  /* ===== GAME SCREEN ===== */
+  #game { display: none; width: 100%; }
+
+  #game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  #game-header h2 { font-size: 1.4rem; }
+
+  #round-info {
+    font-size: 0.95rem;
+    color: #aaa;
+    background: #16213e;
+    padding: 4px 14px;
+    border-radius: 8px;
+  }
+
+  /* Player Areas */
+  .player-area {
+    width: 100%;
+    background: #16213e;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    transition: box-shadow 0.3s;
+  }
+
+  .player-area.active {
+    box-shadow: 0 0 0 2px #4caf50, 0 0 16px rgba(76,175,80,0.25);
+  }
+
+  .player-area.completed {
+    box-shadow: 0 0 0 2px #ffd700, 0 0 16px rgba(255,215,0,0.2);
+  }
+
+  .player-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .player-name {
+    font-weight: bold;
+    font-size: 0.95rem;
+  }
+
+  .player-info {
+    font-size: 0.8rem;
+    color: #888;
+  }
+
+  .player-status {
+    font-size: 0.8rem;
+    color: #4caf50;
+    font-weight: bold;
+  }
+
+  .card-row {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .card-position {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .position-label {
+    font-size: 0.65rem;
+    color: #555;
+    font-weight: bold;
+  }
+
+  /* Cards */
+  .card {
+    width: 52px;
+    height: 72px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .card-number {
+    font-size: 1.6rem;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+
+  .card-emoji {
+    font-size: 1.6rem;
+  }
+
+  .card-back {
+    background: linear-gradient(135deg, #2c3e50 25%, #34495e 50%, #2c3e50 75%);
+    border: 2px solid #3a506b;
+    color: #3a506b;
+    font-size: 1.3rem;
+  }
+
+  .card-back::after {
+    content: '?';
+    font-size: 1.2rem;
+    opacity: 0.4;
+  }
+
+  .card-faceup {
+    border: 2px solid rgba(255,255,255,0.25);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  .card-frog {
+    background: linear-gradient(135deg, #2e7d32, #4caf50);
+    border-color: #66bb6a;
+  }
+
+  .card-trash {
+    background: linear-gradient(135deg, #455a64, #607d8b);
+    border-color: #78909c;
+  }
+
+  .card.clickable {
+    cursor: pointer;
+    box-shadow: 0 0 0 2px #ffd700, 0 0 12px rgba(255,215,0,0.4);
+    animation: pulse 1.2s infinite;
+  }
+
+  .card.clickable:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0 0 3px #ffd700, 0 0 20px rgba(255,215,0,0.5);
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 2px #ffd700, 0 0 12px rgba(255,215,0,0.4); }
+    50% { box-shadow: 0 0 0 2px #ffd700, 0 0 20px rgba(255,215,0,0.6); }
+  }
+
+  @keyframes cardReveal {
+    0% { transform: scale(0.85) rotateY(90deg); opacity: 0.5; }
+    50% { transform: scale(1.05) rotateY(0deg); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+
+  .card.revealed {
+    animation: cardReveal 0.35s ease-out;
+  }
+
+  @keyframes cardPlace {
+    0% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  .card.placed {
+    animation: cardPlace 0.25s ease-out;
+  }
+
+  /* Piles Area */
+  .piles-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    margin: 14px 0;
+    flex-wrap: wrap;
+  }
+
+  .pile-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .pile-label {
+    font-size: 0.75rem;
+    color: #888;
+  }
+
+  .pile-card {
+    width: 58px;
+    height: 80px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .pile-card.clickable {
+    cursor: pointer;
+    box-shadow: 0 0 0 2px #ffd700, 0 0 14px rgba(255,215,0,0.4);
+    animation: pulse 1.2s infinite;
+  }
+
+  .pile-card.clickable:hover {
+    transform: translateY(-3px) scale(1.05);
+  }
+
+  .draw-pile {
+    background: linear-gradient(135deg, #1b5e20, #2e7d32);
+    border: 2px solid #4caf50;
+    color: #81c784;
+    font-size: 1.1rem;
+  }
+
+  .discard-pile-empty {
+    background: transparent;
+    border: 2px dashed #3a506b;
+    color: #3a506b;
+    font-size: 0.7rem;
+  }
+
+  /* Card In Hand */
+  .hand-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0;
+    min-height: 40px;
+  }
+
+  .hand-label {
+    font-size: 0.85rem;
+    color: #ccc;
+  }
+
+  .hand-card {
+    width: 56px;
+    height: 78px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.6rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    animation: cardReveal 0.35s ease-out;
+  }
+
+  /* Message Box */
+  #message-box {
+    text-align: center;
+    padding: 10px;
+    font-size: 0.95rem;
+    color: #ccc;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  #message-box .msg-highlight {
+    color: #4caf50;
+    font-weight: bold;
+  }
+
+  /* Round Summary Overlay */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  .overlay-content {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 32px 40px;
+    text-align: center;
+    max-width: 420px;
+    width: 90%;
+  }
+
+  .overlay-content h2 {
+    margin-bottom: 16px;
+    font-size: 1.5rem;
+  }
+
+  .overlay-content p {
+    margin-bottom: 8px;
+    color: #ccc;
+    font-size: 0.95rem;
+  }
+
+  .overlay-content .winner {
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 1.1rem;
+  }
+
+  .overlay-content .sorted {
+    color: #4caf50;
+  }
+
+  .overlay-content .not-sorted {
+    color: #e57373;
+  }
+
+  .overlay-btn {
+    margin-top: 20px;
+    padding: 10px 32px;
+    border: none;
+    border-radius: 8px;
+    background: #4caf50;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .overlay-btn:hover { background: #43a047; }
+
+  /* Color classes for number cards */
+  .card-val-1 { background: linear-gradient(135deg, #c62828, #e53935); }
+  .card-val-2 { background: linear-gradient(135deg, #d84315, #f4511e); }
+  .card-val-3 { background: linear-gradient(135deg, #ef6c00, #fb8c00); }
+  .card-val-4 { background: linear-gradient(135deg, #f9a825, #fdd835); color: #333; }
+  .card-val-5 { background: linear-gradient(135deg, #2e7d32, #43a047); }
+  .card-val-6 { background: linear-gradient(135deg, #1565c0, #1e88e5); }
+  .card-val-7 { background: linear-gradient(135deg, #6a1b9a, #8e24aa); }
+  .card-val-8 { background: linear-gradient(135deg, #ad1457, #e91e63); }
+
+  /* Responsive */
+  @media (max-width: 550px) {
+    .card { width: 40px; height: 56px; }
+    .card-number { font-size: 1.2rem; }
+    .card-emoji { font-size: 1.2rem; }
+    .pile-card { width: 48px; height: 66px; }
+    .hand-card { width: 48px; height: 66px; font-size: 1.3rem; }
+    .card-row { gap: 3px; }
+    .player-area { padding: 8px 10px; }
+    #app { padding: 8px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="setup">
+    <h1>&#x1f438; Fröschis</h1>
+    <p>Sort your cards from 1 to 8!</p>
+    <div class="setup-form">
+      <label>Number of players</label>
+      <div class="count-buttons" id="count-buttons"></div>
+      <label style="margin-top:8px">Your name</label>
+      <input type="text" id="player-name-input" value="You" style="
+        padding:8px 12px; border-radius:8px; border:2px solid #3a506b;
+        background:#0f1a30; color:#eee; font-size:1rem; width:180px; text-align:center;
+      ">
+      <button id="start-btn">Start Game</button>
+    </div>
+  </div>
+  <div id="game">
+    <div id="game-header">
+      <h2>&#x1f438; Fröschis</h2>
+      <div id="round-info">Round 1</div>
+    </div>
+    <div id="board"></div>
+    <div id="message-box"></div>
+  </div>
+</div>
+
+<script>
+// ==================== CONSTANTS ====================
+
+const CARD_COLORS = {
+  1: 'card-val-1', 2: 'card-val-2', 3: 'card-val-3', 4: 'card-val-4',
+  5: 'card-val-5', 6: 'card-val-6', 7: 'card-val-7', 8: 'card-val-8',
+};
+
+const AI_NAMES = ['Lily', 'Hopper', 'Ribbit'];
+
+// ==================== STATE ====================
+
+let state = {
+  phase: 'setup',
+  players: [],
+  drawPile: [],
+  discardPile: [],
+  currentPlayerIndex: 0,
+  roundNumber: 1,
+  roundEndTriggered: false,
+  triggerPlayerIndex: -1,
+  finalTurnsRemaining: 0,
+  cardInHand: null,
+  turnPhase: null, // 'draw', 'chain', 'frogPlace'
+  validPositions: [],
+  gameOver: false,
+};
+
+let pendingResolve = null;
+let selectedPlayerCount = 2;
+let animSpeed = 500;
+
+// ==================== HELPERS ====================
+
+function delay(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function waitForInput() {
+  return new Promise(resolve => { pendingResolve = resolve; });
+}
+
+function resolveInput(data) {
+  if (pendingResolve) {
+    const r = pendingResolve;
+    pendingResolve = null;
+    r(data);
+  }
+}
+
+function currentPlayer() {
+  return state.players[state.currentPlayerIndex];
+}
+
+// ==================== DECK & CARDS ====================
+
+function createCard(type, value) {
+  return { type, value: value || null };
+}
+
+function createDeck() {
+  const deck = [];
+  for (let v = 1; v <= 8; v++) {
+    for (let i = 0; i < 6; i++) deck.push(createCard('number', v));
+  }
+  for (let i = 0; i < 8; i++) deck.push(createCard('trash'));
+  for (let i = 0; i < 4; i++) deck.push(createCard('frog'));
+  return deck;
+}
+
+function cardLabel(card) {
+  if (!card) return '?';
+  if (card.type === 'frog') return '🐸';
+  if (card.type === 'trash') return '🗑️';
+  return String(card.value);
+}
+
+function isCardTrashForPlayer(card, player) {
+  if (card.type === 'trash') return true;
+  if (card.type === 'number' && card.value > player.rowSize) return true;
+  return false;
+}
+
+// ==================== GAME SETUP ====================
+
+function initSetup() {
+  const container = document.getElementById('count-buttons');
+  container.innerHTML = '';
+  [2, 3, 4].forEach(n => {
+    const btn = document.createElement('button');
+    btn.className = 'count-btn' + (n === selectedPlayerCount ? ' active' : '');
+    btn.textContent = n;
+    btn.onclick = () => {
+      selectedPlayerCount = n;
+      container.querySelectorAll('.count-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    container.appendChild(btn);
+  });
+
+  document.getElementById('start-btn').onclick = () => startGame();
+}
+
+function startGame() {
+  const nameInput = document.getElementById('player-name-input');
+  const humanName = nameInput.value.trim() || 'You';
+
+  state.players = [];
+  state.players.push({ name: humanName, isHuman: true, rowSize: 8, row: [] });
+  for (let i = 0; i < selectedPlayerCount - 1; i++) {
+    state.players.push({ name: AI_NAMES[i], isHuman: false, rowSize: 8, row: [] });
+  }
+
+  state.roundNumber = 1;
+  state.gameOver = false;
+
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('game').style.display = 'block';
+
+  startRound();
+}
+
+function startRound() {
+  const deck = shuffle(createDeck());
+
+  state.drawPile = [];
+  state.discardPile = [];
+  state.roundEndTriggered = false;
+  state.triggerPlayerIndex = -1;
+  state.finalTurnsRemaining = 0;
+  state.cardInHand = null;
+  state.turnPhase = null;
+  state.validPositions = [];
+
+  // Deal cards
+  let deckIdx = 0;
+  for (const player of state.players) {
+    player.row = [];
+    for (let i = 0; i < player.rowSize; i++) {
+      player.row.push({ card: deck[deckIdx++], faceUp: false });
+    }
+  }
+
+  state.drawPile = deck.slice(deckIdx);
+
+  // Determine starting player
+  if (state.roundNumber === 1) {
+    state.currentPlayerIndex = 0; // Human goes first
+  }
+  // Otherwise, triggerPlayerIndex from last round (set before calling startRound)
+
+  document.getElementById('round-info').textContent =
+    `Round ${state.roundNumber}`;
+
+  render();
+  gameLoop();
+}
+
+// ==================== GAME LOOP ====================
+
+async function gameLoop() {
+  while (!state.gameOver) {
+    await playTurn();
+
+    if (state.gameOver) break;
+
+    // Check if round ended
+    if (state.roundEndTriggered && state.finalTurnsRemaining <= 0) {
+      await handleRoundEnd();
+      if (state.gameOver) break;
+      startRound();
+      return; // startRound calls gameLoop
+    }
+
+    // Advance to next player
+    state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+
+    // Skip if this is the trigger player (they already went)
+    if (state.roundEndTriggered &&
+        state.currentPlayerIndex === state.triggerPlayerIndex) {
+      state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+    }
+  }
+}
+
+async function playTurn() {
+  const player = currentPlayer();
+  state.turnPhase = 'draw';
+  state.cardInHand = null;
+  state.validPositions = [];
+  render();
+
+  setMessage(`${player.name}'s turn — ${player.isHuman ? 'draw a card!' : 'thinking...'}`);
+
+  // Draw phase
+  let drawnCard;
+  if (player.isHuman) {
+    drawnCard = await humanDraw();
+  } else {
+    await delay(animSpeed + 200);
+    drawnCard = aiDraw(player);
+  }
+
+  // Process the drawn card through the chain
+  state.turnPhase = 'chain';
+  await processCard(player, drawnCard);
+
+  // Check if this player's row is now sorted
+  if (!state.roundEndTriggered && isRowSorted(player)) {
+    setMessage(`<span class="msg-highlight">${player.name} completed their row!</span>`);
+    render();
+    await delay(1200);
+    state.roundEndTriggered = true;
+    state.triggerPlayerIndex = state.currentPlayerIndex;
+    state.finalTurnsRemaining = state.players.length - 1;
+  }
+
+  if (state.roundEndTriggered && state.currentPlayerIndex !== state.triggerPlayerIndex) {
+    state.finalTurnsRemaining--;
+  }
+
+  state.cardInHand = null;
+  state.turnPhase = null;
+  state.validPositions = [];
+  render();
+
+  await delay(300);
+}
+
+// ==================== DRAW PHASE ====================
+
+async function humanDraw() {
+  const canDrawDiscard = state.discardPile.length > 0;
+  state.turnPhase = 'draw';
+  render();
+
+  const input = await waitForInput();
+  let card;
+  if (input.source === 'discard') {
+    card = state.discardPile.pop();
+  } else {
+    refillDrawPile();
+    card = state.drawPile.pop();
+  }
+
+  state.cardInHand = card;
+  setMessage(`Drew ${cardLabel(card)}${input.source === 'discard' ? ' from discard' : ''}`);
+  render();
+  await delay(animSpeed);
+  return card;
+}
+
+function aiDraw(player) {
+  let fromDiscard = false;
+
+  if (state.discardPile.length > 0) {
+    const top = state.discardPile[state.discardPile.length - 1];
+    if (top.type === 'frog') {
+      fromDiscard = true;
+    } else if (top.type === 'number' && top.value <= player.rowSize) {
+      const pos = top.value - 1;
+      const slot = player.row[pos];
+      if (!slot.faceUp || slot.card.type === 'frog') {
+        fromDiscard = true;
+      }
+    }
+  }
+
+  let card;
+  if (fromDiscard) {
+    card = state.discardPile.pop();
+  } else {
+    refillDrawPile();
+    card = state.drawPile.pop();
+  }
+
+  state.cardInHand = card;
+  setMessage(`${player.name} drew ${cardLabel(card)}${fromDiscard ? ' from discard' : ''}`);
+  render();
+  return card;
+}
+
+function refillDrawPile() {
+  if (state.drawPile.length === 0 && state.discardPile.length > 1) {
+    const top = state.discardPile.pop();
+    state.drawPile = shuffle(state.discardPile);
+    state.discardPile = [top];
+  }
+}
+
+// ==================== CARD PROCESSING (CHAIN) ====================
+
+async function processCard(player, card) {
+  state.cardInHand = card;
+  render();
+
+  // Trash check
+  if (isCardTrashForPlayer(card, player)) {
+    state.discardPile.push(card);
+    state.cardInHand = null;
+    const label = card.type === 'trash' ? 'Trash card' : `${card.value} (too high)`;
+    setMessage(`${label} — discarded!`);
+    render();
+    await delay(animSpeed);
+    return;
+  }
+
+  // Frog: choose position
+  if (card.type === 'frog') {
+    const faceDownPositions = [];
+    for (let i = 0; i < player.rowSize; i++) {
+      if (!player.row[i].faceUp) faceDownPositions.push(i);
+    }
+
+    if (faceDownPositions.length === 0) {
+      state.discardPile.push(card);
+      state.cardInHand = null;
+      setMessage('No face-down positions — frog discarded!');
+      render();
+      await delay(animSpeed);
+      return;
+    }
+
+    let chosenPos;
+    if (player.isHuman) {
+      state.turnPhase = 'frogPlace';
+      state.validPositions = faceDownPositions;
+      setMessage('Choose a position for the frog!');
+      render();
+      const input = await waitForInput();
+      chosenPos = input.position;
+    } else {
+      await delay(animSpeed);
+      chosenPos = aiChooseFrogPosition(player, faceDownPositions);
+    }
+
+    // Place frog and get revealed card
+    const revealed = player.row[chosenPos].card;
+    player.row[chosenPos] = { card, faceUp: true };
+    state.cardInHand = null;
+    setMessage(`Placed 🐸 at position ${chosenPos + 1}, revealed ${cardLabel(revealed)}`);
+    render();
+    await delay(animSpeed);
+
+    // Chain with revealed card
+    await processCard(player, revealed);
+    return;
+  }
+
+  // Number card
+  const pos = card.value - 1;
+  const slot = player.row[pos];
+
+  if (!slot.faceUp) {
+    // Swap with face-down card
+    const revealed = slot.card;
+    player.row[pos] = { card, faceUp: true };
+    state.cardInHand = null;
+    setMessage(`Placed ${card.value} at position ${pos + 1}, revealed ${cardLabel(revealed)}`);
+    render();
+    await delay(animSpeed);
+
+    // Chain with revealed card
+    await processCard(player, revealed);
+  } else if (slot.card.type === 'frog') {
+    // Replace frog with correct number, frog goes back to hand
+    const frog = slot.card;
+    player.row[pos] = { card, faceUp: true };
+    state.cardInHand = null;
+    setMessage(`Replaced 🐸 at position ${pos + 1} with ${card.value}! Frog freed!`);
+    render();
+    await delay(animSpeed);
+
+    // Chain with freed frog
+    await processCard(player, frog);
+  } else {
+    // Position already has face-up number card — discard
+    state.discardPile.push(card);
+    state.cardInHand = null;
+    setMessage(`Position ${pos + 1} already filled — discarded ${card.value}`);
+    render();
+    await delay(animSpeed);
+  }
+}
+
+// ==================== ROW CHECKING ====================
+
+function isRowSorted(player) {
+  for (let i = 0; i < player.rowSize; i++) {
+    const slot = player.row[i];
+    if (!slot.faceUp) return false;
+    if (slot.card.type === 'frog') continue;
+    if (slot.card.type !== 'number' || slot.card.value !== i + 1) return false;
+  }
+  return true;
+}
+
+// ==================== ROUND END ====================
+
+async function handleRoundEnd() {
+  // Flip all face-down cards
+  for (const player of state.players) {
+    for (const slot of player.row) {
+      slot.faceUp = true;
+    }
+  }
+  render();
+  await delay(800);
+
+  // Check which players have sorted rows
+  const sortedPlayers = [];
+  for (let i = 0; i < state.players.length; i++) {
+    if (isRowSorted(state.players[i])) {
+      sortedPlayers.push(i);
+    }
+  }
+
+  // Show round summary overlay
+  await showRoundSummary(sortedPlayers);
+
+  // Reduce row size for sorted players
+  for (const idx of sortedPlayers) {
+    state.players[idx].rowSize--;
+  }
+
+  // Check for game win
+  for (const idx of sortedPlayers) {
+    if (state.players[idx].rowSize <= 0) {
+      state.players[idx].rowSize = 0;
+      await showGameOver(sortedPlayers.filter(i => state.players[i].rowSize <= 0));
+      return;
+    }
+  }
+
+  // Prepare next round
+  state.roundNumber++;
+  state.currentPlayerIndex = state.triggerPlayerIndex;
+}
+
+async function showRoundSummary(sortedPlayerIndices) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+
+    let html = `<div class="overlay-content"><h2>Round ${state.roundNumber} Complete!</h2>`;
+    for (let i = 0; i < state.players.length; i++) {
+      const p = state.players[i];
+      const sorted = sortedPlayerIndices.includes(i);
+      html += `<p class="${sorted ? 'sorted' : 'not-sorted'}">${p.name}: ${sorted ? '✓ Sorted! (row shrinks to ' + (p.rowSize - 1) + ')' : '✗ Not sorted'}</p>`;
+    }
+    html += `<button class="overlay-btn" id="overlay-continue">Continue</button></div>`;
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    document.getElementById('overlay-continue').onclick = () => {
+      overlay.remove();
+      resolve();
+    };
+  });
+}
+
+async function showGameOver(winnerIndices) {
+  state.gameOver = true;
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+
+    const winners = winnerIndices.map(i => state.players[i].name).join(' & ');
+    let html = `<div class="overlay-content">
+      <h2>&#x1f3c6; Game Over!</h2>
+      <p class="winner">${winners} win${winnerIndices.length > 1 ? '' : 's'}!</p>
+      <p style="margin-top:12px; color:#aaa">Completed in ${state.roundNumber} rounds</p>
+      <button class="overlay-btn" id="overlay-newgame">New Game</button>
+    </div>`;
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    document.getElementById('overlay-newgame').onclick = () => {
+      overlay.remove();
+      document.getElementById('game').style.display = 'none';
+      document.getElementById('setup').style.display = 'flex';
+      state.phase = 'setup';
+      resolve();
+    };
+  });
+}
+
+// ==================== AI LOGIC ====================
+
+function aiChooseFrogPosition(player, faceDownPositions) {
+  // Prefer positions for higher values (harder to find naturally)
+  // Sort descending by position index
+  const sorted = [...faceDownPositions].sort((a, b) => b - a);
+  return sorted[0];
+}
+
+// ==================== RENDERING ====================
+
+function render() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  // Render AI players (top)
+  for (let i = 1; i < state.players.length; i++) {
+    renderPlayerArea(board, state.players[i], i);
+  }
+
+  // Piles area
+  renderPiles(board);
+
+  // Card in hand
+  renderHandArea(board);
+
+  // Human player (bottom)
+  renderPlayerArea(board, state.players[0], 0);
+}
+
+function renderPlayerArea(container, player, playerIndex) {
+  const area = document.createElement('div');
+  area.className = 'player-area';
+  if (playerIndex === state.currentPlayerIndex) area.classList.add('active');
+  if (isRowSorted(player)) area.classList.add('completed');
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'player-header';
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'player-name';
+  nameSpan.textContent = player.name + (player.isHuman ? '' : ' (AI)');
+  header.appendChild(nameSpan);
+
+  const infoSpan = document.createElement('span');
+  infoSpan.className = 'player-info';
+  infoSpan.textContent = `Row: ${player.rowSize} card${player.rowSize !== 1 ? 's' : ''}`;
+  header.appendChild(infoSpan);
+
+  if (isRowSorted(player)) {
+    const statusSpan = document.createElement('span');
+    statusSpan.className = 'player-status';
+    statusSpan.textContent = '✓ Sorted!';
+    header.appendChild(statusSpan);
+  }
+
+  area.appendChild(header);
+
+  // Card row
+  const row = document.createElement('div');
+  row.className = 'card-row';
+
+  for (let i = 0; i < player.rowSize; i++) {
+    const posDiv = document.createElement('div');
+    posDiv.className = 'card-position';
+
+    const label = document.createElement('div');
+    label.className = 'position-label';
+    label.textContent = i + 1;
+    posDiv.appendChild(label);
+
+    const slot = player.row[i];
+    const cardDiv = document.createElement('div');
+    cardDiv.className = 'card';
+
+    if (slot.faceUp) {
+      cardDiv.classList.add('card-faceup');
+      if (slot.card.type === 'number') {
+        cardDiv.classList.add(CARD_COLORS[slot.card.value]);
+        const numSpan = document.createElement('span');
+        numSpan.className = 'card-number';
+        numSpan.textContent = slot.card.value;
+        cardDiv.appendChild(numSpan);
+      } else if (slot.card.type === 'frog') {
+        cardDiv.classList.add('card-frog');
+        const emoSpan = document.createElement('span');
+        emoSpan.className = 'card-emoji';
+        emoSpan.textContent = '🐸';
+        cardDiv.appendChild(emoSpan);
+      } else if (slot.card.type === 'trash') {
+        cardDiv.classList.add('card-trash');
+        const emoSpan = document.createElement('span');
+        emoSpan.className = 'card-emoji';
+        emoSpan.textContent = '🗑️';
+        cardDiv.appendChild(emoSpan);
+      }
+    } else {
+      cardDiv.classList.add('card-back');
+    }
+
+    // Clickable for frog placement
+    if (state.turnPhase === 'frogPlace' &&
+        playerIndex === state.currentPlayerIndex &&
+        player.isHuman &&
+        state.validPositions.includes(i)) {
+      cardDiv.classList.add('clickable');
+      const pos = i;
+      cardDiv.onclick = () => resolveInput({ position: pos });
+    }
+
+    posDiv.appendChild(cardDiv);
+    row.appendChild(posDiv);
+  }
+
+  area.appendChild(row);
+  container.appendChild(area);
+}
+
+function renderPiles(container) {
+  const pilesDiv = document.createElement('div');
+  pilesDiv.className = 'piles-area';
+
+  // Draw pile
+  const drawContainer = document.createElement('div');
+  drawContainer.className = 'pile-container';
+
+  const drawLabel = document.createElement('div');
+  drawLabel.className = 'pile-label';
+  drawLabel.textContent = `Draw (${state.drawPile.length})`;
+  drawContainer.appendChild(drawLabel);
+
+  const drawCard = document.createElement('div');
+  drawCard.className = 'pile-card draw-pile';
+  drawCard.textContent = '🐸';
+
+  if (state.turnPhase === 'draw' && currentPlayer().isHuman && state.drawPile.length > 0) {
+    drawCard.classList.add('clickable');
+    drawCard.onclick = () => resolveInput({ source: 'draw' });
+  }
+
+  drawContainer.appendChild(drawCard);
+  pilesDiv.appendChild(drawContainer);
+
+  // Discard pile
+  const discardContainer = document.createElement('div');
+  discardContainer.className = 'pile-container';
+
+  const discardLabel = document.createElement('div');
+  discardLabel.className = 'pile-label';
+  discardLabel.textContent = `Discard (${state.discardPile.length})`;
+  discardContainer.appendChild(discardLabel);
+
+  if (state.discardPile.length > 0) {
+    const topCard = state.discardPile[state.discardPile.length - 1];
+    const discardDiv = document.createElement('div');
+    discardDiv.className = 'pile-card card-faceup';
+
+    if (topCard.type === 'number') {
+      discardDiv.classList.add(CARD_COLORS[topCard.value]);
+      discardDiv.innerHTML = `<span class="card-number">${topCard.value}</span>`;
+    } else if (topCard.type === 'frog') {
+      discardDiv.classList.add('card-frog');
+      discardDiv.innerHTML = `<span class="card-emoji">🐸</span>`;
+    } else {
+      discardDiv.classList.add('card-trash');
+      discardDiv.innerHTML = `<span class="card-emoji">🗑️</span>`;
+    }
+
+    if (state.turnPhase === 'draw' && currentPlayer().isHuman) {
+      discardDiv.classList.add('clickable');
+      discardDiv.onclick = () => resolveInput({ source: 'discard' });
+    }
+
+    discardContainer.appendChild(discardDiv);
+  } else {
+    const emptyDiv = document.createElement('div');
+    emptyDiv.className = 'pile-card discard-pile-empty';
+    emptyDiv.textContent = 'empty';
+    discardContainer.appendChild(emptyDiv);
+  }
+
+  pilesDiv.appendChild(discardContainer);
+  container.appendChild(pilesDiv);
+}
+
+function renderHandArea(container) {
+  const handDiv = document.createElement('div');
+  handDiv.className = 'hand-area';
+
+  if (state.cardInHand) {
+    const label = document.createElement('span');
+    label.className = 'hand-label';
+    label.textContent = 'In hand:';
+    handDiv.appendChild(label);
+
+    const cardDiv = document.createElement('div');
+    cardDiv.className = 'hand-card';
+
+    if (state.cardInHand.type === 'number') {
+      cardDiv.classList.add(CARD_COLORS[state.cardInHand.value]);
+      cardDiv.textContent = state.cardInHand.value;
+    } else if (state.cardInHand.type === 'frog') {
+      cardDiv.classList.add('card-frog');
+      cardDiv.textContent = '🐸';
+    } else {
+      cardDiv.classList.add('card-trash');
+      cardDiv.textContent = '🗑️';
+    }
+
+    handDiv.appendChild(cardDiv);
+  }
+
+  container.appendChild(handDiv);
+}
+
+function setMessage(html) {
+  document.getElementById('message-box').innerHTML = html;
+}
+
+// ==================== INIT ====================
+
+initSetup();
+</script>
+</body>
+</html>
