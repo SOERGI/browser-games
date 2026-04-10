@@ -262,6 +262,23 @@
   .media-btn:hover { background: #4a6a8b; }
   .media-btn.off { background: #e63946; }
 
+  #debug-panel {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    z-index: 50;
+    background: rgba(0,0,0,.85);
+    color: #0f0;
+    font: 11px/1.5 monospace;
+    padding: 10px 14px;
+    border-radius: 8px;
+    max-width: 340px;
+    white-space: pre;
+    pointer-events: none;
+  }
+
+  #debug-panel.hidden { display: none; }
+
   #local-video {
     bottom: 16px;
     right: 16px;
@@ -367,8 +384,11 @@
   <button class="media-btn" id="btn-mic" title="Toggle microphone">🎤</button>
   <button class="media-btn" id="btn-cam" title="Toggle camera">📷</button>
   <button class="media-btn" id="btn-speaker" title="Toggle speaker">🔊</button>
+  <button class="media-btn" id="btn-debug" title="Debug info">🐛</button>
   <button class="media-btn off" id="btn-leave" title="Leave game">✕</button>
 </div>
+
+<div id="debug-panel" class="hidden"></div>
 
 <div id="modal" style="display:none">
   <div class="modal-card">
@@ -718,6 +738,8 @@ function handleDisconnect() {
 
 function cleanupPeer() {
   stopVideoWatchdog();
+  if (debugInterval) { clearInterval(debugInterval); debugInterval = null; }
+  document.getElementById('debug-panel').classList.add('hidden');
   if (conn) { conn.close(); conn = null; }
   if (mediaConn) { mediaConn.close(); mediaConn = null; }
   if (peer) { peer.destroy(); peer = null; }
@@ -757,6 +779,7 @@ function startVideoWatchdog() {
     if (quality) {
       if (quality.totalVideoFrames === lastFrames && lastFrames > 0) {
         // No new frames — re-attach stream to recover
+        console.warn('[watchdog] Video frozen, recovering. Frames:', lastFrames);
         const stream = remoteVid.srcObject;
         remoteVid.srcObject = null;
         remoteVid.srcObject = stream;
@@ -908,6 +931,101 @@ document.getElementById('btn-leave').addEventListener('click', () => {
     init();
   }, () => {});
 });
+
+// Debug panel
+let debugInterval = null;
+
+document.getElementById('btn-debug').addEventListener('click', () => {
+  const panel = document.getElementById('debug-panel');
+  if (panel.classList.toggle('hidden')) {
+    clearInterval(debugInterval);
+    debugInterval = null;
+  } else {
+    updateDebug();
+    debugInterval = setInterval(updateDebug, 1000);
+  }
+});
+
+async function updateDebug() {
+  const panel = document.getElementById('debug-panel');
+  const pc = mediaConn?.peerConnection;
+  const lines = [];
+
+  // ICE & connection state
+  if (pc) {
+    lines.push('ICE: ' + pc.iceConnectionState);
+    lines.push('Conn: ' + pc.connectionState);
+    lines.push('Signal: ' + pc.signalingState);
+  } else {
+    lines.push('No PeerConnection');
+  }
+
+  // Local tracks
+  if (localStream) {
+    localStream.getTracks().forEach(t => {
+      lines.push('L ' + t.kind + ': ' + t.readyState + (t.muted ? ' MUTED' : '') + (t.enabled ? '' : ' DISABLED'));
+    });
+  }
+
+  // Remote tracks
+  const remoteVid = document.getElementById('remote-video');
+  if (remoteVid.srcObject) {
+    remoteVid.srcObject.getTracks().forEach(t => {
+      lines.push('R ' + t.kind + ': ' + t.readyState + (t.muted ? ' MUTED' : '') + (t.enabled ? '' : ' DISABLED'));
+    });
+  }
+
+  // Video element state
+  lines.push('');
+  const q = remoteVid.getVideoPlaybackQuality?.();
+  if (q) {
+    lines.push('Frames total: ' + q.totalVideoFrames);
+    lines.push('Frames dropped: ' + q.droppedVideoFrames);
+  }
+  lines.push('Video paused: ' + remoteVid.paused);
+  lines.push('Video time: ' + remoteVid.currentTime.toFixed(1));
+  lines.push('Video size: ' + remoteVid.videoWidth + 'x' + remoteVid.videoHeight);
+
+  // RTCStats - inbound video
+  if (pc) {
+    try {
+      const stats = await pc.getStats();
+      stats.forEach(s => {
+        if (s.type === 'inbound-rtp' && s.kind === 'video') {
+          lines.push('');
+          lines.push('--- inbound video ---');
+          lines.push('Bytes recv: ' + s.bytesReceived);
+          lines.push('Pkts recv: ' + s.packetsReceived);
+          lines.push('Pkts lost: ' + s.packetsLost);
+          lines.push('Frames dec: ' + (s.framesDecoded ?? '?'));
+          lines.push('Frames recv: ' + (s.framesReceived ?? '?'));
+          lines.push('Frames drop: ' + (s.framesDropped ?? '?'));
+          lines.push('FreezeCount: ' + (s.freezeCount ?? '?'));
+          lines.push('FreezeTime: ' + (s.totalFreezesDuration?.toFixed(1) ?? '?') + 's');
+          lines.push('Jitter: ' + (s.jitter?.toFixed(3) ?? '?'));
+          if (s.codecId) {
+            const codec = stats.get(s.codecId);
+            if (codec) lines.push('Codec: ' + (codec.mimeType ?? '?'));
+          }
+        }
+        if (s.type === 'candidate-pair' && s.state === 'succeeded') {
+          lines.push('');
+          lines.push('RTT: ' + (s.currentRoundTripTime * 1000).toFixed(0) + 'ms');
+          const local = stats.get(s.localCandidateId);
+          const remote = stats.get(s.remoteCandidateId);
+          if (local) lines.push('Local: ' + local.candidateType + ' ' + (local.protocol ?? ''));
+          if (remote) lines.push('Remote: ' + remote.candidateType + ' ' + (remote.protocol ?? ''));
+        }
+      });
+    } catch (e) {}
+  }
+
+  lines.push('');
+  lines.push('Watchdog recoveries shown');
+  lines.push('in console (F12)');
+
+  panel.textContent = lines.join('\n');
+}
 
 // Modal
 function showModal(message, onYes, onNo) {
