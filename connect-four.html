@@ -782,7 +782,10 @@ function answerMediaCall() {
   });
 }
 
-// Resume videos when returning to the tab/app (mobile browsers pause them)
+// Auto-resume videos that get paused by the browser
+document.getElementById('local-video').addEventListener('pause', (e) => { playVideo(e.target); });
+document.getElementById('remote-video').addEventListener('pause', (e) => { playVideo(e.target); });
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     const local = document.getElementById('local-video');
@@ -817,15 +820,21 @@ document.getElementById('btn-cam').addEventListener('click', async () => {
   const oldTrack = localStream.getVideoTracks()[0];
 
   if (oldTrack && oldTrack.readyState === 'live') {
-    // Turn off: stop the hardware
+    // Turn off: stop the hardware and remove from stream
     oldTrack.stop();
+    localStream.removeTrack(oldTrack);
     btn.classList.add('off');
   } else {
-    // Turn on: get a new video track
+    // Turn on: remove any dead tracks, get a fresh video track
+    localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
       const newTrack = newStream.getVideoTracks()[0];
       localStream.addTrack(newTrack);
+      // Update local preview
+      const localVid = document.getElementById('local-video');
+      localVid.srcObject = localStream;
+      playVideo(localVid);
       // Replace track in the peer connection so remote sees video again
       if (mediaConn && mediaConn.peerConnection) {
         const sender = mediaConn.peerConnection.getSenders().find(s => s.track === null || s.track?.kind === 'video');
