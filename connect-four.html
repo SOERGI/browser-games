@@ -700,6 +700,7 @@ function setupDataConnection() {
 }
 
 function handleDisconnect() {
+  stopVideoWatchdog();
   gameOver = true;
   updateStatus('Opponent disconnected');
   if (localStream) {
@@ -716,6 +717,7 @@ function handleDisconnect() {
 }
 
 function cleanupPeer() {
+  stopVideoWatchdog();
   if (conn) { conn.close(); conn = null; }
   if (mediaConn) { mediaConn.close(); mediaConn = null; }
   if (peer) { peer.destroy(); peer = null; }
@@ -732,26 +734,75 @@ function cleanupPeer() {
 }
 
 // Video/audio
+const mediaConstraints = {
+  video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15 } },
+  audio: true
+};
+
 function playVideo(el) {
   const p = el.play();
   if (p) p.catch(() => {});
 }
 
+let videoWatchdog = null;
+
+function startVideoWatchdog() {
+  stopVideoWatchdog();
+  let lastFrames = -1;
+  videoWatchdog = setInterval(() => {
+    const remoteVid = document.getElementById('remote-video');
+    if (!remoteVid.srcObject || remoteVid.paused) return;
+    // Use playback quality to detect frozen frames
+    const quality = remoteVid.getVideoPlaybackQuality?.();
+    if (quality) {
+      if (quality.totalVideoFrames === lastFrames && lastFrames > 0) {
+        // No new frames — re-attach stream to recover
+        const stream = remoteVid.srcObject;
+        remoteVid.srcObject = null;
+        remoteVid.srcObject = stream;
+        playVideo(remoteVid);
+      }
+      lastFrames = quality.totalVideoFrames;
+    } else {
+      // Fallback: check currentTime
+      const t = remoteVid.currentTime;
+      if (t === lastFrames && lastFrames > 0) {
+        const stream = remoteVid.srcObject;
+        remoteVid.srcObject = null;
+        remoteVid.srcObject = stream;
+        playVideo(remoteVid);
+      }
+      lastFrames = t;
+    }
+  }, 3000);
+}
+
+function stopVideoWatchdog() {
+  if (videoWatchdog) { clearInterval(videoWatchdog); videoWatchdog = null; }
+}
+
+function attachRemoteStream(remoteStream) {
+  const remoteVid = document.getElementById('remote-video');
+  remoteVid.srcObject = remoteStream;
+  remoteVid.classList.remove('hidden');
+  playVideo(remoteVid);
+  startVideoWatchdog();
+  // Also listen for track-level mute/unmute to recover
+  remoteStream.getVideoTracks().forEach(track => {
+    track.onunmute = () => playVideo(remoteVid);
+  });
+}
+
 async function startMediaCall() {
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
     const localVid = document.getElementById('local-video');
     localVid.srcObject = localStream;
     localVid.classList.remove('hidden');
     playVideo(localVid);
 
     const call = peer.call(conn.peer, localStream);
-    call.on('stream', (remoteStream) => {
-      const remoteVid = document.getElementById('remote-video');
-      remoteVid.srcObject = remoteStream;
-      remoteVid.classList.remove('hidden');
-      playVideo(remoteVid);
-    });
+    call.on('stream', attachRemoteStream);
     mediaConn = call;
     showMediaControls();
   } catch (err) {
@@ -762,7 +813,7 @@ async function startMediaCall() {
 function answerMediaCall() {
   peer.on('call', async (call) => {
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
       const localVid = document.getElementById('local-video');
       localVid.srcObject = localStream;
       localVid.classList.remove('hidden');
@@ -771,12 +822,7 @@ function answerMediaCall() {
     } catch (err) {
       call.answer();
     }
-    call.on('stream', (remoteStream) => {
-      const remoteVid = document.getElementById('remote-video');
-      remoteVid.srcObject = remoteStream;
-      remoteVid.classList.remove('hidden');
-      playVideo(remoteVid);
-    });
+    call.on('stream', attachRemoteStream);
     mediaConn = call;
     showMediaControls();
   });
