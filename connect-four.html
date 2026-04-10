@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Connect Four</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -95,9 +96,201 @@
 
   button#reset:hover { background: #c1121f; }
 
+  .board.locked {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  /* Lobby overlay */
+  #lobby {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 22, 38, .92);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s;
+  }
+
+  #lobby.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .lobby-card {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 36px;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  }
+
+  .lobby-card h2 {
+    font-size: 1.6rem;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .lobby-subtitle {
+    color: #888;
+    margin-bottom: 24px;
+    font-size: 0.95rem;
+  }
+
+  .lobby-btn {
+    display: block;
+    width: 100%;
+    padding: 12px 20px;
+    margin-bottom: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: background .2s;
+    color: #fff;
+  }
+
+  .lobby-btn.primary { background: #e63946; }
+  .lobby-btn.primary:hover { background: #c1121f; }
+  .lobby-btn.secondary { background: #3a506b; }
+  .lobby-btn.secondary:hover { background: #2c3e57; }
+
+  .room-code {
+    font-size: 2.2rem;
+    letter-spacing: 8px;
+    font-family: monospace;
+    background: #0f1626;
+    padding: 14px 20px;
+    border-radius: 8px;
+    margin: 16px 0;
+    color: #ffd60a;
+  }
+
+  .share-btn {
+    padding: 10px 24px;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 8px;
+    background: #ffd60a;
+    color: #1a1a2e;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background .2s;
+  }
+
+  .share-btn:hover { background: #e6c200; }
+
+  .lobby-status {
+    color: #888;
+    font-size: 0.9rem;
+    margin-top: 14px;
+  }
+
+  #room-input {
+    width: 100%;
+    padding: 12px;
+    font-size: 1.3rem;
+    text-align: center;
+    letter-spacing: 6px;
+    font-family: monospace;
+    background: #0f1626;
+    border: 2px solid #3a506b;
+    border-radius: 8px;
+    color: #eee;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  #room-input::placeholder {
+    letter-spacing: 2px;
+    font-size: 1rem;
+    color: #555;
+  }
+
+  #room-input:focus {
+    outline: none;
+    border-color: #ffd60a;
+  }
+
+  /* Video */
+  .video-el {
+    position: fixed;
+    width: 140px;
+    border-radius: 12px;
+    border: 2px solid #3a506b;
+    z-index: 20;
+    object-fit: cover;
+    background: #0f1626;
+  }
+
+  .video-el.hidden { display: none; }
+
+  #local-video {
+    bottom: 16px;
+    right: 16px;
+    transform: scaleX(-1);
+  }
+
+  #remote-video {
+    bottom: 16px;
+    left: 16px;
+  }
+
+  /* Modal */
+  #modal {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 22, 38, .85);
+  }
+
+  .modal-card {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 28px 32px;
+    text-align: center;
+    max-width: 340px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+
+  .modal-card p {
+    margin-bottom: 20px;
+    font-size: 1.05rem;
+    line-height: 1.5;
+  }
+
+  .modal-card button {
+    padding: 8px 22px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 0 6px;
+    color: #fff;
+  }
+
+  #modal-yes { background: #e63946; }
+  #modal-yes:hover { background: #c1121f; }
+  #modal-no { background: #3a506b; }
+  #modal-no:hover { background: #2c3e57; }
+
   @media (max-width: 560px) {
     .cell { width: 44px; height: 44px; }
     .board { gap: 6px; padding: 8px; }
+    .lobby-card { padding: 24px 16px; }
+    .video-el { width: 100px; }
+    .room-code { font-size: 1.6rem; letter-spacing: 6px; }
   }
 </style>
 </head>
@@ -108,6 +301,48 @@
 <div class="board" id="board"></div>
 <button id="reset">NEW GAME</button>
 
+<div id="lobby" class="visible">
+  <div class="lobby-card">
+    <h2>CONNECT FOUR</h2>
+    <p class="lobby-subtitle">Choose a mode</p>
+    <div id="lobby-menu">
+      <button class="lobby-btn primary" id="btn-local">Local 2-Player</button>
+      <button class="lobby-btn primary" id="btn-create">Create Online Game</button>
+      <button class="lobby-btn secondary" id="btn-show-join">Join with Code</button>
+      <div id="join-input" style="display:none">
+        <input type="text" id="room-input" placeholder="ROOM CODE" maxlength="4">
+        <button class="lobby-btn primary" id="btn-join">Connect</button>
+      </div>
+    </div>
+    <div id="lobby-waiting" style="display:none">
+      <p>Share this code with your opponent:</p>
+      <div class="room-code" id="room-code-display"></div>
+      <button class="share-btn" id="btn-share">Copy Link</button>
+      <p class="lobby-status" id="lobby-status">Waiting for opponent...</p>
+    </div>
+    <div id="lobby-joining" style="display:none">
+      <p class="lobby-status" id="joining-status">Connecting...</p>
+    </div>
+    <div id="lobby-error" style="display:none">
+      <p class="lobby-status" id="error-msg" style="color:#e63946"></p>
+      <button class="lobby-btn secondary" id="btn-back">Back</button>
+    </div>
+  </div>
+</div>
+
+<video id="local-video" class="video-el hidden" autoplay muted playsinline></video>
+<video id="remote-video" class="video-el hidden" autoplay playsinline></video>
+
+<div id="modal" style="display:none">
+  <div class="modal-card">
+    <p id="modal-msg"></p>
+    <div>
+      <button id="modal-yes">Yes</button>
+      <button id="modal-no">No</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const ROWS = 6;
 const COLS = 7;
@@ -116,6 +351,15 @@ const RED = 1;
 const YELLOW = 2;
 
 let board, currentPlayer, gameOver;
+
+// Multiplayer state
+let mode = 'local';
+let myRole = null;
+let peer = null;
+let conn = null;
+let mediaConn = null;
+let localStream = null;
+let resetPending = false;
 
 function init() {
   board = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY));
@@ -137,6 +381,9 @@ function updateStatus(msg) {
   const el = document.getElementById('status');
   if (msg) {
     el.innerHTML = msg;
+  } else if (mode === 'online') {
+    const isMyTurn = currentPlayer === myRole;
+    el.innerHTML = `<span class="disc" style="background:${currentPlayer === RED ? '#e63946' : '#ffd60a'}"></span> ${isMyTurn ? 'Your turn' : "Opponent's turn"}`;
   } else {
     el.innerHTML = `<span class="disc" style="background:${currentPlayer === RED ? '#e63946' : '#ffd60a'}"></span> ${playerName(currentPlayer)}'s turn`;
   }
@@ -161,7 +408,10 @@ function dropDisc(col) {
   if (winCells) {
     gameOver = true;
     highlightWin(winCells);
-    updateStatus(`<span class="disc" style="background:${currentPlayer === RED ? '#e63946' : '#ffd60a'}"></span> ${playerName(currentPlayer)} wins!`);
+    let winLabel = playerName(currentPlayer) + ' wins!';
+    if (mode === 'online') winLabel = currentPlayer === myRole ? 'You win!' : 'You lose!';
+    updateStatus(`<span class="disc" style="background:${currentPlayer === RED ? '#e63946' : '#ffd60a'}"></span> ${winLabel}`);
+    updateBoardLock();
     return;
   }
 
@@ -173,6 +423,7 @@ function dropDisc(col) {
 
   currentPlayer = currentPlayer === RED ? YELLOW : RED;
   updateStatus();
+  updateBoardLock();
 }
 
 function checkWin(row, col) {
@@ -226,7 +477,7 @@ function render(dropCol, dropRow) {
         cell.style.setProperty('--drop-rows', dropRow);
       }
 
-      cell.addEventListener('click', () => dropDisc(c));
+      cell.addEventListener('click', () => handleCellClick(c));
       cell.addEventListener('mouseenter', () => previewColumn(c));
       cell.addEventListener('mouseleave', clearPreview);
 
@@ -237,6 +488,7 @@ function render(dropCol, dropRow) {
 
 function previewColumn(col) {
   if (gameOver) return;
+  if (mode === 'online' && currentPlayer !== myRole) return;
   const row = lowestEmptyRow(col);
   if (row === -1) return;
   const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
@@ -251,8 +503,330 @@ function clearPreview() {
   });
 }
 
-document.getElementById('reset').addEventListener('click', init);
-init();
+document.getElementById('reset').addEventListener('click', handleReset);
+
+// --- Multiplayer functions ---
+
+function handleCellClick(col) {
+  if (mode === 'local') {
+    dropDisc(col);
+  } else if (mode === 'online') {
+    if (gameOver || currentPlayer !== myRole) return;
+    dropDisc(col);
+    if (conn && conn.open) conn.send({ type: 'move', col });
+  }
+}
+
+function handleReset() {
+  if (mode === 'local') {
+    init();
+  } else if (mode === 'online') {
+    if (!conn || !conn.open) return;
+    resetPending = true;
+    conn.send({ type: 'reset' });
+    updateStatus('Reset requested... waiting for opponent');
+  }
+}
+
+function updateBoardLock() {
+  const boardEl = document.getElementById('board');
+  if (mode === 'online' && currentPlayer !== myRole && !gameOver) {
+    boardEl.classList.add('locked');
+  } else {
+    boardEl.classList.remove('locked');
+  }
+}
+
+// Room code generation (no ambiguous chars)
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+// Lobby management
+function showLobby(view) {
+  const lobby = document.getElementById('lobby');
+  lobby.classList.add('visible');
+  document.getElementById('lobby-menu').style.display = view === 'menu' ? '' : 'none';
+  document.getElementById('lobby-waiting').style.display = view === 'waiting' ? '' : 'none';
+  document.getElementById('lobby-joining').style.display = view === 'joining' ? '' : 'none';
+  document.getElementById('lobby-error').style.display = view === 'error' ? '' : 'none';
+  document.getElementById('join-input').style.display = 'none';
+}
+
+function hideLobby() {
+  document.getElementById('lobby').classList.remove('visible');
+}
+
+function showLobbyError(msg) {
+  document.getElementById('error-msg').textContent = msg;
+  showLobby('error');
+}
+
+// PeerJS connection
+function createGame() {
+  const roomCode = generateRoomCode();
+  mode = 'online';
+  myRole = RED;
+
+  peer = new Peer('c4-' + roomCode);
+
+  peer.on('open', () => {
+    showLobby('waiting');
+    document.getElementById('room-code-display').textContent = roomCode;
+    document.getElementById('lobby-status').textContent = 'Waiting for opponent...';
+  });
+
+  peer.on('connection', (dataConn) => {
+    conn = dataConn;
+    setupDataConnection();
+    startMediaCall();
+  });
+
+  peer.on('error', (err) => {
+    if (err.type === 'unavailable-id') {
+      peer.destroy();
+      createGame();
+    } else {
+      showLobbyError('Connection failed: ' + err.message);
+    }
+  });
+}
+
+function joinGame(roomCode) {
+  mode = 'online';
+  myRole = YELLOW;
+
+  peer = new Peer();
+
+  peer.on('open', () => {
+    conn = peer.connect('c4-' + roomCode, { reliable: true });
+
+    conn.on('open', () => {
+      setupDataConnection();
+      answerMediaCall();
+      hideLobby();
+      init();
+      updateBoardLock();
+    });
+  });
+
+  peer.on('error', (err) => {
+    if (err.type === 'peer-unavailable') {
+      showLobbyError('Room not found. Check the code and try again.');
+    } else {
+      showLobbyError('Connection failed: ' + err.message);
+    }
+  });
+}
+
+function setupDataConnection() {
+  conn.on('data', (data) => {
+    switch (data.type) {
+      case 'move':
+        dropDisc(data.col);
+        updateBoardLock();
+        break;
+      case 'reset':
+        showModal('Opponent wants a new game. Accept?', () => {
+          conn.send({ type: 'reset-ack' });
+          init();
+          updateBoardLock();
+        }, () => {
+          conn.send({ type: 'reset-decline' });
+        });
+        break;
+      case 'reset-ack':
+        resetPending = false;
+        init();
+        updateBoardLock();
+        break;
+      case 'reset-decline':
+        resetPending = false;
+        updateStatus("Opponent declined the rematch");
+        break;
+    }
+  });
+
+  conn.on('close', handleDisconnect);
+
+  // Host: guest just connected
+  if (myRole === RED) {
+    hideLobby();
+    init();
+    updateBoardLock();
+  }
+}
+
+function handleDisconnect() {
+  gameOver = true;
+  updateStatus('Opponent disconnected');
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+  }
+  document.getElementById('local-video').classList.add('hidden');
+  document.getElementById('remote-video').classList.add('hidden');
+  showModal('Opponent disconnected. Return to lobby?', () => {
+    cleanupPeer();
+    showLobby('menu');
+  }, null);
+}
+
+function cleanupPeer() {
+  if (conn) { conn.close(); conn = null; }
+  if (mediaConn) { mediaConn.close(); mediaConn = null; }
+  if (peer) { peer.destroy(); peer = null; }
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+  }
+  mode = 'local';
+  myRole = null;
+  resetPending = false;
+  document.getElementById('local-video').classList.add('hidden');
+  document.getElementById('remote-video').classList.add('hidden');
+}
+
+// Video/audio
+async function startMediaCall() {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const localVid = document.getElementById('local-video');
+    localVid.srcObject = localStream;
+    localVid.classList.remove('hidden');
+
+    const call = peer.call(conn.peer, localStream);
+    call.on('stream', (remoteStream) => {
+      const remoteVid = document.getElementById('remote-video');
+      remoteVid.srcObject = remoteStream;
+      remoteVid.classList.remove('hidden');
+    });
+    mediaConn = call;
+  } catch (err) {
+    console.log('Camera not available:', err.message);
+  }
+}
+
+function answerMediaCall() {
+  peer.on('call', async (call) => {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const localVid = document.getElementById('local-video');
+      localVid.srcObject = localStream;
+      localVid.classList.remove('hidden');
+      call.answer(localStream);
+    } catch (err) {
+      call.answer();
+    }
+    call.on('stream', (remoteStream) => {
+      const remoteVid = document.getElementById('remote-video');
+      remoteVid.srcObject = remoteStream;
+      remoteVid.classList.remove('hidden');
+    });
+    mediaConn = call;
+  });
+}
+
+// Modal
+function showModal(message, onYes, onNo) {
+  const modal = document.getElementById('modal');
+  document.getElementById('modal-msg').textContent = message;
+
+  const yesBtn = document.getElementById('modal-yes');
+  const noBtn = document.getElementById('modal-no');
+
+  if (onNo === null) {
+    noBtn.style.display = 'none';
+    yesBtn.textContent = 'OK';
+  } else {
+    noBtn.style.display = '';
+    yesBtn.textContent = 'Yes';
+  }
+
+  const newYes = yesBtn.cloneNode(true);
+  const newNo = noBtn.cloneNode(true);
+  yesBtn.replaceWith(newYes);
+  noBtn.replaceWith(newNo);
+
+  newYes.addEventListener('click', () => { hideModal(); if (onYes) onYes(); });
+  newNo.addEventListener('click', () => { hideModal(); if (onNo) onNo(); });
+
+  modal.style.display = '';
+}
+
+function hideModal() {
+  document.getElementById('modal').style.display = 'none';
+}
+
+// Link sharing
+function getShareUrl(roomCode) {
+  const url = new URL(location.href.split('?')[0]);
+  url.searchParams.set('room', roomCode);
+  return url.toString();
+}
+
+// Lobby button handlers
+document.getElementById('btn-local').addEventListener('click', () => {
+  mode = 'local';
+  hideLobby();
+  init();
+});
+
+document.getElementById('btn-create').addEventListener('click', createGame);
+
+document.getElementById('btn-show-join').addEventListener('click', () => {
+  document.getElementById('join-input').style.display = '';
+  document.getElementById('room-input').focus();
+});
+
+document.getElementById('btn-join').addEventListener('click', () => {
+  const code = document.getElementById('room-input').value.trim().toUpperCase();
+  if (code.length < 4) return;
+  showLobby('joining');
+  joinGame(code);
+});
+
+document.getElementById('room-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btn-join').click();
+});
+
+document.getElementById('btn-share').addEventListener('click', () => {
+  const roomCode = document.getElementById('room-code-display').textContent;
+  const url = getShareUrl(roomCode);
+  if (navigator.share) {
+    navigator.share({ title: 'Connect Four', text: 'Join my game!', url });
+  } else {
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('btn-share');
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy Link', 2000);
+    });
+  }
+});
+
+document.getElementById('btn-back').addEventListener('click', () => {
+  cleanupPeer();
+  showLobby('menu');
+});
+
+// Start: check URL params
+function checkUrlAndStart() {
+  const params = new URLSearchParams(location.search);
+  const roomCode = params.get('room');
+  if (roomCode) {
+    showLobby('joining');
+    joinGame(roomCode.toUpperCase());
+  } else {
+    showLobby('menu');
+  }
+  // Pre-render empty board behind lobby
+  init();
+}
+
+checkUrlAndStart();
 </script>
 </body>
 </html>
