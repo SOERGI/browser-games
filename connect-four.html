@@ -368,7 +368,7 @@
 </head>
 <body>
 
-<div id="version">v10</div>
+<div id="version">v11</div>
 <h1>CONNECT FOUR</h1>
 <div id="status"></div>
 <div class="board" id="board"></div>
@@ -1019,34 +1019,36 @@ async function updateDebug() {
     });
   }
 
-  // Video element state
+  // Audio element state
   lines.push('');
-  const q = remoteVid.getVideoPlaybackQuality?.();
-  if (q) {
-    lines.push('Frames total: ' + q.totalVideoFrames);
-    lines.push('Frames dropped: ' + q.droppedVideoFrames);
-  }
-  lines.push('Video paused: ' + remoteVid.paused);
-  lines.push('Video time: ' + remoteVid.currentTime.toFixed(1));
-  lines.push('Video size: ' + remoteVid.videoWidth + 'x' + remoteVid.videoHeight);
+  lines.push('Audio el muted: ' + remoteVid.muted);
+  lines.push('Audio el volume: ' + remoteVid.volume);
+  lines.push('Audio el paused: ' + remoteVid.paused);
 
-  // RTCStats - inbound video
+  // RTCStats
   if (pc) {
     try {
       const stats = await pc.getStats();
       stats.forEach(s => {
+        if (s.type === 'inbound-rtp' && s.kind === 'audio') {
+          lines.push('');
+          lines.push('--- inbound audio ---');
+          lines.push('Bytes recv: ' + s.bytesReceived);
+          lines.push('Pkts recv: ' + s.packetsReceived);
+          lines.push('Pkts lost: ' + s.packetsLost);
+          lines.push('Jitter: ' + (s.jitter?.toFixed(3) ?? '?'));
+          if (s.codecId) {
+            const codec = stats.get(s.codecId);
+            if (codec) lines.push('Codec: ' + (codec.mimeType ?? '?'));
+          }
+        }
         if (s.type === 'inbound-rtp' && s.kind === 'video') {
           lines.push('');
           lines.push('--- inbound video ---');
           lines.push('Bytes recv: ' + s.bytesReceived);
-          lines.push('Pkts recv: ' + s.packetsReceived);
-          lines.push('Pkts lost: ' + s.packetsLost);
           lines.push('Frames dec: ' + (s.framesDecoded ?? '?'));
-          lines.push('Frames recv: ' + (s.framesReceived ?? '?'));
           lines.push('Frames drop: ' + (s.framesDropped ?? '?'));
           lines.push('FreezeCount: ' + (s.freezeCount ?? '?'));
-          lines.push('FreezeTime: ' + (s.totalFreezesDuration?.toFixed(1) ?? '?') + 's');
-          lines.push('Jitter: ' + (s.jitter?.toFixed(3) ?? '?'));
           if (s.codecId) {
             const codec = stats.get(s.codecId);
             if (codec) lines.push('Codec: ' + (codec.mimeType ?? '?'));
@@ -1063,10 +1065,6 @@ async function updateDebug() {
       });
     } catch (e) {}
   }
-
-  lines.push('');
-  lines.push('Watchdog recoveries shown');
-  lines.push('in console (F12)');
 
   panel.textContent = lines.join('\n');
 }
