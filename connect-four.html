@@ -368,7 +368,7 @@
 </head>
 <body>
 
-<div id="version">v11</div>
+<div id="version">v12</div>
 <h1>CONNECT FOUR</h1>
 <div id="status"></div>
 <div class="board" id="board"></div>
@@ -405,6 +405,7 @@
 
 <video id="local-video" class="video-el hidden" autoplay muted playsinline></video>
 <video id="remote-video" autoplay playsinline></video>
+<audio id="remote-audio" autoplay></audio>
 <canvas id="remote-canvas" class="hidden"></canvas>
 
 <div id="media-controls" class="hidden">
@@ -847,13 +848,11 @@ function hookRemoteTrack(call) {
   const pc = call.peerConnection;
   if (!pc) return;
   pc.ontrack = (event) => {
-    // Attach stream to hidden video element for audio playback
-    const remoteVid = document.getElementById('remote-video');
-    const stream = event.streams[0] || new MediaStream([event.track]);
-    remoteVid.srcObject = stream;
-    playVideo(remoteVid);
-
-    if (event.track.kind === 'video') {
+    if (event.track.kind === 'audio') {
+      const audioEl = document.getElementById('remote-audio');
+      audioEl.srcObject = new MediaStream([event.track]);
+      audioEl.play().catch(() => {});
+    } else if (event.track.kind === 'video') {
       document.getElementById('remote-canvas').classList.remove('hidden');
       startRemoteCanvasRender(event.track);
     }
@@ -902,9 +901,9 @@ document.getElementById('local-video').addEventListener('pause', (e) => { if (mo
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     const local = document.getElementById('local-video');
-    const remote = document.getElementById('remote-video');
     if (local.srcObject) playVideo(local);
-    if (remote.srcObject) playVideo(remote);
+    const audioEl = document.getElementById('remote-audio');
+    if (audioEl.srcObject && audioEl.paused) audioEl.play().catch(() => {});
   }
 });
 
@@ -961,11 +960,11 @@ document.getElementById('btn-cam').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-speaker').addEventListener('click', () => {
-  const remoteVid = document.getElementById('remote-video');
-  remoteVid.muted = !remoteVid.muted;
+  const audioEl = document.getElementById('remote-audio');
+  audioEl.muted = !audioEl.muted;
   const btn = document.getElementById('btn-speaker');
-  btn.textContent = remoteVid.muted ? '🔇' : '🔊';
-  btn.classList.toggle('off', remoteVid.muted);
+  btn.textContent = audioEl.muted ? '🔇' : '🔊';
+  btn.classList.toggle('off', audioEl.muted);
 });
 
 document.getElementById('btn-leave').addEventListener('click', () => {
@@ -1020,10 +1019,11 @@ async function updateDebug() {
   }
 
   // Audio element state
+  const audioEl = document.getElementById('remote-audio');
   lines.push('');
-  lines.push('Audio el muted: ' + remoteVid.muted);
-  lines.push('Audio el volume: ' + remoteVid.volume);
-  lines.push('Audio el paused: ' + remoteVid.paused);
+  lines.push('Audio el muted: ' + audioEl.muted);
+  lines.push('Audio el volume: ' + audioEl.volume);
+  lines.push('Audio el paused: ' + audioEl.paused);
 
   // RTCStats
   if (pc) {
