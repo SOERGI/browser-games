@@ -804,16 +804,22 @@ function stopVideoWatchdog() {
   if (videoWatchdog) { clearInterval(videoWatchdog); videoWatchdog = null; }
 }
 
-function attachRemoteStream(remoteStream) {
-  const remoteVid = document.getElementById('remote-video');
-  remoteVid.srcObject = remoteStream;
-  remoteVid.classList.remove('hidden');
-  playVideo(remoteVid);
-  startVideoWatchdog();
-  // Also listen for track-level mute/unmute to recover
-  remoteStream.getVideoTracks().forEach(track => {
-    track.onunmute = () => playVideo(remoteVid);
-  });
+// Use RTCPeerConnection.ontrack directly for reliable stream rendering.
+// PeerJS's 'stream' event can give a MediaStream that's disconnected
+// from the actual decoded tracks, causing 0x0 / frozen video.
+function hookRemoteTrack(call) {
+  const pc = call.peerConnection;
+  if (!pc) return;
+  pc.ontrack = (event) => {
+    const remoteVid = document.getElementById('remote-video');
+    const stream = event.streams[0] || new MediaStream([event.track]);
+    remoteVid.srcObject = stream;
+    remoteVid.classList.remove('hidden');
+    playVideo(remoteVid);
+    startVideoWatchdog();
+    event.track.onunmute = () => playVideo(remoteVid);
+    console.log('[ontrack]', event.track.kind, event.track.readyState);
+  };
 }
 
 async function startMediaCall() {
@@ -825,7 +831,7 @@ async function startMediaCall() {
     playVideo(localVid);
 
     const call = peer.call(conn.peer, localStream);
-    call.on('stream', attachRemoteStream);
+    hookRemoteTrack(call);
     mediaConn = call;
     showMediaControls();
   } catch (err) {
@@ -845,7 +851,7 @@ function answerMediaCall() {
     } catch (err) {
       call.answer();
     }
-    call.on('stream', attachRemoteStream);
+    hookRemoteTrack(call);
     mediaConn = call;
     showMediaControls();
   });
