@@ -286,9 +286,25 @@
   }
 
   #remote-video {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #remote-canvas {
+    position: fixed;
     bottom: 16px;
     left: 16px;
+    width: 140px;
+    border-radius: 12px;
+    border: 2px solid #3a506b;
+    z-index: 20;
+    background: #0f1626;
   }
+
+  #remote-canvas.hidden { display: none; }
 
   /* Modal */
   #modal {
@@ -345,13 +361,14 @@
     .board { gap: 6px; padding: 8px; }
     .lobby-card { padding: 24px 16px; }
     .video-el { width: 100px; }
+    #remote-canvas { width: 100px; }
     .room-code { font-size: 1.6rem; letter-spacing: 6px; }
   }
 </style>
 </head>
 <body>
 
-<div id="version">v7</div>
+<div id="version">v8</div>
 <h1>CONNECT FOUR</h1>
 <div id="status"></div>
 <div class="board" id="board"></div>
@@ -387,7 +404,8 @@
 </div>
 
 <video id="local-video" class="video-el hidden" autoplay muted playsinline></video>
-<video id="remote-video" class="video-el hidden" autoplay playsinline></video>
+<video id="remote-video" autoplay playsinline></video>
+<canvas id="remote-canvas" class="hidden"></canvas>
 
 <div id="media-controls" class="hidden">
   <button class="media-btn" id="btn-mic" title="Toggle microphone">🎤</button>
@@ -729,7 +747,7 @@ function setupDataConnection() {
 }
 
 function handleDisconnect() {
-  stopVideoWatchdog();
+  stopRemoteCanvasRender();
   gameOver = true;
   updateStatus('Opponent disconnected');
   if (localStream) {
@@ -737,7 +755,7 @@ function handleDisconnect() {
     localStream = null;
   }
   document.getElementById('local-video').classList.add('hidden');
-  document.getElementById('remote-video').classList.add('hidden');
+  document.getElementById('remote-canvas').classList.add('hidden');
   hideMediaControls();
   showModal('Opponent disconnected. Return to lobby?', () => {
     cleanupPeer();
@@ -746,7 +764,7 @@ function handleDisconnect() {
 }
 
 function cleanupPeer() {
-  stopVideoWatchdog();
+  stopRemoteCanvasRender();
   if (debugInterval) { clearInterval(debugInterval); debugInterval = null; }
   document.getElementById('debug-panel').classList.add('hidden');
   if (conn) { conn.close(); conn = null; }
@@ -760,7 +778,7 @@ function cleanupPeer() {
   myRole = null;
   resetPending = false;
   document.getElementById('local-video').classList.add('hidden');
-  document.getElementById('remote-video').classList.add('hidden');
+  document.getElementById('remote-canvas').classList.add('hidden');
   hideMediaControls();
 }
 
@@ -775,58 +793,43 @@ function playVideo(el) {
   if (p) p.catch(() => {});
 }
 
-let videoWatchdog = null;
+let remoteRafId = null;
 
-function startVideoWatchdog() {
-  stopVideoWatchdog();
-  let lastFrames = -1;
-  videoWatchdog = setInterval(() => {
-    const remoteVid = document.getElementById('remote-video');
-    if (!remoteVid.srcObject || remoteVid.paused) return;
-    // Use playback quality to detect frozen frames
-    const quality = remoteVid.getVideoPlaybackQuality?.();
-    if (quality) {
-      if (quality.totalVideoFrames === lastFrames && lastFrames > 0) {
-        // No new frames — re-attach stream to recover
-        console.warn('[watchdog] Video frozen, recovering. Frames:', lastFrames);
-        const stream = remoteVid.srcObject;
-        remoteVid.srcObject = null;
-        remoteVid.srcObject = stream;
-        playVideo(remoteVid);
+function startRemoteCanvasRender() {
+  stopRemoteCanvasRender();
+  const video = document.getElementById('remote-video');
+  const canvas = document.getElementById('remote-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function draw() {
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
       }
-      lastFrames = quality.totalVideoFrames;
-    } else {
-      // Fallback: check currentTime
-      const t = remoteVid.currentTime;
-      if (t === lastFrames && lastFrames > 0) {
-        const stream = remoteVid.srcObject;
-        remoteVid.srcObject = null;
-        remoteVid.srcObject = stream;
-        playVideo(remoteVid);
-      }
-      lastFrames = t;
+      ctx.drawImage(video, 0, 0);
     }
-  }, 3000);
+    remoteRafId = requestAnimationFrame(draw);
+  }
+  draw();
 }
 
-function stopVideoWatchdog() {
-  if (videoWatchdog) { clearInterval(videoWatchdog); videoWatchdog = null; }
+function stopRemoteCanvasRender() {
+  if (remoteRafId) { cancelAnimationFrame(remoteRafId); remoteRafId = null; }
 }
 
 // Use RTCPeerConnection.ontrack directly for reliable stream rendering.
-// PeerJS's 'stream' event can give a MediaStream that's disconnected
-// from the actual decoded tracks, causing 0x0 / frozen video.
 function hookRemoteTrack(call) {
   const pc = call.peerConnection;
   if (!pc) return;
   pc.ontrack = (event) => {
+    if (event.track.kind !== 'video') return;
     const remoteVid = document.getElementById('remote-video');
     const stream = event.streams[0] || new MediaStream([event.track]);
     remoteVid.srcObject = stream;
-    remoteVid.classList.remove('hidden');
     playVideo(remoteVid);
-    startVideoWatchdog();
-    event.track.onunmute = () => playVideo(remoteVid);
+    document.getElementById('remote-canvas').classList.remove('hidden');
+    startRemoteCanvasRender();
     console.log('[ontrack]', event.track.kind, event.track.readyState);
   };
 }
@@ -866,9 +869,8 @@ function answerMediaCall() {
   });
 }
 
-// Auto-resume videos that get paused by the browser (only while in online mode)
+// Auto-resume local video if browser pauses it
 document.getElementById('local-video').addEventListener('pause', (e) => { if (mode === 'online') playVideo(e.target); });
-document.getElementById('remote-video').addEventListener('pause', (e) => { if (mode === 'online') playVideo(e.target); });
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
