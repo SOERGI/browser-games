@@ -368,7 +368,7 @@
 </head>
 <body>
 
-<div id="version">v8</div>
+<div id="version">v9</div>
 <h1>CONNECT FOUR</h1>
 <div id="status"></div>
 <div class="board" id="board"></div>
@@ -802,6 +802,7 @@ function startRemoteCanvasRender() {
   const ctx = canvas.getContext('2d');
 
   function draw() {
+    if (video.paused) playVideo(video);
     if (video.videoWidth > 0 && video.videoHeight > 0) {
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
         canvas.width = video.videoWidth;
