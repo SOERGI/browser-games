@@ -368,7 +368,7 @@
 </head>
 <body>
 
-<div id="version">v9</div>
+<div id="version">v10</div>
 <h1>CONNECT FOUR</h1>
 <div id="status"></div>
 <div class="board" id="board"></div>
@@ -793,44 +793,70 @@ function playVideo(el) {
   if (p) p.catch(() => {});
 }
 
+let remoteReader = null;
 let remoteRafId = null;
 
-function startRemoteCanvasRender() {
+function startRemoteCanvasRender(track) {
   stopRemoteCanvasRender();
-  const video = document.getElementById('remote-video');
   const canvas = document.getElementById('remote-canvas');
   const ctx = canvas.getContext('2d');
 
-  function draw() {
-    if (video.paused) playVideo(video);
-    if (video.videoWidth > 0 && video.videoHeight > 0) {
-      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+  if (typeof MediaStreamTrackProcessor !== 'undefined') {
+    // Read frames directly from WebRTC track — bypasses <video> element entirely
+    const processor = new MediaStreamTrackProcessor({ track });
+    remoteReader = processor.readable.getReader();
+    (async () => {
+      try {
+        while (true) {
+          const { value: frame, done } = await remoteReader.read();
+          if (done) break;
+          if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
+            canvas.width = frame.displayWidth;
+            canvas.height = frame.displayHeight;
+          }
+          ctx.drawImage(frame, 0, 0);
+          frame.close();
+        }
+      } catch (e) { /* reader cancelled */ }
+    })();
+  } else {
+    // Fallback for Safari/Firefox: draw from video element
+    const video = document.getElementById('remote-video');
+    function draw() {
+      if (video.paused) playVideo(video);
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+        }
+        ctx.drawImage(video, 0, 0);
       }
-      ctx.drawImage(video, 0, 0);
+      remoteRafId = requestAnimationFrame(draw);
     }
-    remoteRafId = requestAnimationFrame(draw);
+    draw();
   }
-  draw();
 }
 
 function stopRemoteCanvasRender() {
+  if (remoteReader) { remoteReader.cancel().catch(() => {}); remoteReader = null; }
   if (remoteRafId) { cancelAnimationFrame(remoteRafId); remoteRafId = null; }
 }
 
-// Use RTCPeerConnection.ontrack directly for reliable stream rendering.
+// Use RTCPeerConnection.ontrack for reliable stream/track access.
 function hookRemoteTrack(call) {
   const pc = call.peerConnection;
   if (!pc) return;
   pc.ontrack = (event) => {
-    if (event.track.kind !== 'video') return;
+    // Attach stream to hidden video element for audio playback
     const remoteVid = document.getElementById('remote-video');
     const stream = event.streams[0] || new MediaStream([event.track]);
     remoteVid.srcObject = stream;
     playVideo(remoteVid);
-    document.getElementById('remote-canvas').classList.remove('hidden');
-    startRemoteCanvasRender();
+
+    if (event.track.kind === 'video') {
+      document.getElementById('remote-canvas').classList.remove('hidden');
+      startRemoteCanvasRender(event.track);
+    }
     console.log('[ontrack]', event.track.kind, event.track.readyState);
   };
 }
