@@ -782,9 +782,9 @@ function answerMediaCall() {
   });
 }
 
-// Auto-resume videos that get paused by the browser
-document.getElementById('local-video').addEventListener('pause', (e) => { playVideo(e.target); });
-document.getElementById('remote-video').addEventListener('pause', (e) => { playVideo(e.target); });
+// Auto-resume videos that get paused by the browser (only while in online mode)
+document.getElementById('local-video').addEventListener('pause', (e) => { if (mode === 'online') playVideo(e.target); });
+document.getElementById('remote-video').addEventListener('pause', (e) => { if (mode === 'online') playVideo(e.target); });
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
