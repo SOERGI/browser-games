@@ -367,6 +367,7 @@
   <button class="media-btn" id="btn-mic" title="Toggle microphone">🎤</button>
   <button class="media-btn" id="btn-cam" title="Toggle camera">📷</button>
   <button class="media-btn" id="btn-speaker" title="Toggle speaker">🔊</button>
+  <button class="media-btn off" id="btn-leave" title="Leave game">✕</button>
 </div>
 
 <div id="modal" style="display:none">
@@ -688,6 +689,8 @@ function setupDataConnection() {
 
   conn.on('close', handleDisconnect);
 
+  showMediaControls();
+
   // Host: guest just connected
   if (myRole === RED) {
     hideLobby();
@@ -729,18 +732,25 @@ function cleanupPeer() {
 }
 
 // Video/audio
+function playVideo(el) {
+  const p = el.play();
+  if (p) p.catch(() => {});
+}
+
 async function startMediaCall() {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     const localVid = document.getElementById('local-video');
     localVid.srcObject = localStream;
     localVid.classList.remove('hidden');
+    playVideo(localVid);
 
     const call = peer.call(conn.peer, localStream);
     call.on('stream', (remoteStream) => {
       const remoteVid = document.getElementById('remote-video');
       remoteVid.srcObject = remoteStream;
       remoteVid.classList.remove('hidden');
+      playVideo(remoteVid);
     });
     mediaConn = call;
     showMediaControls();
@@ -756,6 +766,7 @@ function answerMediaCall() {
       const localVid = document.getElementById('local-video');
       localVid.srcObject = localStream;
       localVid.classList.remove('hidden');
+      playVideo(localVid);
       call.answer(localStream);
     } catch (err) {
       call.answer();
@@ -764,11 +775,22 @@ function answerMediaCall() {
       const remoteVid = document.getElementById('remote-video');
       remoteVid.srcObject = remoteStream;
       remoteVid.classList.remove('hidden');
+      playVideo(remoteVid);
     });
     mediaConn = call;
     showMediaControls();
   });
 }
+
+// Resume videos when returning to the tab/app (mobile browsers pause them)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    const local = document.getElementById('local-video');
+    const remote = document.getElementById('remote-video');
+    if (local.srcObject) playVideo(local);
+    if (remote.srcObject) playVideo(remote);
+  }
+});
 
 // Media controls
 function showMediaControls() {
@@ -789,13 +811,31 @@ document.getElementById('btn-mic').addEventListener('click', () => {
   btn.classList.toggle('off', !track.enabled);
 });
 
-document.getElementById('btn-cam').addEventListener('click', () => {
+document.getElementById('btn-cam').addEventListener('click', async () => {
   if (!localStream) return;
-  const track = localStream.getVideoTracks()[0];
-  if (!track) return;
-  track.enabled = !track.enabled;
   const btn = document.getElementById('btn-cam');
-  btn.classList.toggle('off', !track.enabled);
+  const oldTrack = localStream.getVideoTracks()[0];
+
+  if (oldTrack && oldTrack.readyState === 'live') {
+    // Turn off: stop the hardware
+    oldTrack.stop();
+    btn.classList.add('off');
+  } else {
+    // Turn on: get a new video track
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const newTrack = newStream.getVideoTracks()[0];
+      localStream.addTrack(newTrack);
+      // Replace track in the peer connection so remote sees video again
+      if (mediaConn && mediaConn.peerConnection) {
+        const sender = mediaConn.peerConnection.getSenders().find(s => s.track === null || s.track?.kind === 'video');
+        if (sender) sender.replaceTrack(newTrack);
+      }
+      btn.classList.remove('off');
+    } catch (err) {
+      console.log('Could not restart camera:', err.message);
+    }
+  }
 });
 
 document.getElementById('btn-speaker').addEventListener('click', () => {
@@ -804,6 +844,14 @@ document.getElementById('btn-speaker').addEventListener('click', () => {
   const btn = document.getElementById('btn-speaker');
   btn.textContent = remoteVid.muted ? '🔇' : '🔊';
   btn.classList.toggle('off', remoteVid.muted);
+});
+
+document.getElementById('btn-leave').addEventListener('click', () => {
+  showModal('Leave the game?', () => {
+    cleanupPeer();
+    showLobby('menu');
+    init();
+  }, () => {});
 });
 
 // Modal
