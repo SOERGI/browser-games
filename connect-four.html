@@ -368,7 +368,7 @@
 </head>
 <body>
 
-<div id="version">v13</div>
+<div id="version">v14</div>
 <h1>CONNECT FOUR</h1>
 <div id="status"></div>
 <div class="board" id="board"></div>
@@ -436,10 +436,6 @@ const RED = 1;
 const YELLOW = 2;
 
 let board, currentPlayer, gameOver;
-
-// Audio context for reliable remote audio playback
-let audioCtx = null;
-let audioSource = null;
 
 // Multiplayer state
 let mode = 'local';
@@ -656,8 +652,6 @@ function showLobbyError(msg) {
 
 // PeerJS connection
 function createGame() {
-  // Pre-create AudioContext during user gesture so it starts in 'running' state
-  if (!audioCtx) audioCtx = new AudioContext();
   const roomCode = generateRoomCode();
   mode = 'online';
   myRole = RED;
@@ -687,7 +681,6 @@ function createGame() {
 }
 
 function joinGame(roomCode) {
-  if (!audioCtx) audioCtx = new AudioContext();
   mode = 'online';
   myRole = YELLOW;
 
@@ -782,8 +775,8 @@ function cleanupPeer() {
     localStream.getTracks().forEach(t => t.stop());
     localStream = null;
   }
-  if (audioSource) { try { audioSource.disconnect(); } catch(e) {} audioSource = null; }
-  if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
+  const audioEl = document.getElementById('remote-audio');
+  audioEl.srcObject = null;
   mode = 'local';
   myRole = null;
   resetPending = false;
@@ -858,12 +851,9 @@ function hookRemoteTrack(call) {
   if (!pc) return;
   pc.ontrack = (event) => {
     if (event.track.kind === 'audio') {
-      if (!audioCtx) audioCtx = new AudioContext();
-      audioCtx.resume().catch(() => {});
-      if (audioSource) { try { audioSource.disconnect(); } catch(e) {} }
-      audioSource = audioCtx.createMediaStreamSource(new MediaStream([event.track]));
-      audioSource.connect(audioCtx.destination);
-      console.log('[audio] AudioContext state:', audioCtx.state);
+      const audioEl = document.getElementById('remote-audio');
+      audioEl.srcObject = new MediaStream([event.track]);
+      audioEl.play().catch(() => {});
     } else if (event.track.kind === 'video') {
       document.getElementById('remote-canvas').classList.remove('hidden');
       startRemoteCanvasRender(event.track);
@@ -909,6 +899,14 @@ function answerMediaCall() {
 
 // Auto-resume local video if browser pauses it
 document.getElementById('local-video').addEventListener('pause', (e) => { if (mode === 'online') playVideo(e.target); });
+
+// Resume audio on any user click (Chrome blocks autoplay until user gesture)
+document.addEventListener('click', () => {
+  const audioEl = document.getElementById('remote-audio');
+  if (mode === 'online' && audioEl.srcObject && audioEl.paused) {
+    audioEl.play().catch(() => {});
+  }
+});
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
@@ -972,18 +970,11 @@ document.getElementById('btn-cam').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-speaker').addEventListener('click', () => {
+  const audioEl = document.getElementById('remote-audio');
+  audioEl.muted = !audioEl.muted;
   const btn = document.getElementById('btn-speaker');
-  if (audioCtx && audioSource) {
-    if (btn.classList.contains('off')) {
-      audioSource.connect(audioCtx.destination);
-      btn.classList.remove('off');
-      btn.textContent = '🔊';
-    } else {
-      audioSource.disconnect();
-      btn.classList.add('off');
-      btn.textContent = '🔇';
-    }
-  }
+  btn.textContent = audioEl.muted ? '🔇' : '🔊';
+  btn.classList.toggle('off', audioEl.muted);
 });
 
 document.getElementById('btn-leave').addEventListener('click', () => {
@@ -1038,9 +1029,11 @@ async function updateDebug() {
   }
 
   // Audio state
+  const audioEl = document.getElementById('remote-audio');
   lines.push('');
-  lines.push('AudioCtx: ' + (audioCtx ? audioCtx.state : 'none'));
-  lines.push('AudioSrc: ' + (audioSource ? 'connected' : 'none'));
+  lines.push('Audio muted: ' + audioEl.muted);
+  lines.push('Audio paused: ' + audioEl.paused);
+  lines.push('Audio src: ' + (audioEl.srcObject ? 'yes' : 'no'));
 
   // RTCStats
   if (pc) {
