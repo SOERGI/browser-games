@@ -232,6 +232,36 @@
 
   .video-el.hidden { display: none; }
 
+  #media-controls {
+    position: fixed;
+    bottom: 16px;
+    right: 50%;
+    transform: translateX(50%);
+    z-index: 21;
+    display: flex;
+    gap: 8px;
+  }
+
+  #media-controls.hidden { display: none; }
+
+  .media-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: #3a506b;
+    color: #eee;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background .2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .media-btn:hover { background: #4a6a8b; }
+  .media-btn.off { background: #e63946; }
+
   #local-video {
     bottom: 16px;
     right: 16px;
@@ -332,6 +362,12 @@
 
 <video id="local-video" class="video-el hidden" autoplay muted playsinline></video>
 <video id="remote-video" class="video-el hidden" autoplay playsinline></video>
+
+<div id="media-controls" class="hidden">
+  <button class="media-btn" id="btn-mic" title="Toggle microphone">🎤</button>
+  <button class="media-btn" id="btn-cam" title="Toggle camera">📷</button>
+  <button class="media-btn" id="btn-speaker" title="Toggle speaker">🔊</button>
+</div>
 
 <div id="modal" style="display:none">
   <div class="modal-card">
@@ -669,6 +705,7 @@ function handleDisconnect() {
   }
   document.getElementById('local-video').classList.add('hidden');
   document.getElementById('remote-video').classList.add('hidden');
+  hideMediaControls();
   showModal('Opponent disconnected. Return to lobby?', () => {
     cleanupPeer();
     showLobby('menu');
@@ -688,6 +725,7 @@ function cleanupPeer() {
   resetPending = false;
   document.getElementById('local-video').classList.add('hidden');
   document.getElementById('remote-video').classList.add('hidden');
+  hideMediaControls();
 }
 
 // Video/audio
@@ -705,6 +743,7 @@ async function startMediaCall() {
       remoteVid.classList.remove('hidden');
     });
     mediaConn = call;
+    showMediaControls();
   } catch (err) {
     console.log('Camera not available:', err.message);
   }
@@ -727,8 +766,45 @@ function answerMediaCall() {
       remoteVid.classList.remove('hidden');
     });
     mediaConn = call;
+    showMediaControls();
   });
 }
+
+// Media controls
+function showMediaControls() {
+  document.getElementById('media-controls').classList.remove('hidden');
+}
+
+function hideMediaControls() {
+  document.getElementById('media-controls').classList.add('hidden');
+}
+
+document.getElementById('btn-mic').addEventListener('click', () => {
+  if (!localStream) return;
+  const track = localStream.getAudioTracks()[0];
+  if (!track) return;
+  track.enabled = !track.enabled;
+  const btn = document.getElementById('btn-mic');
+  btn.textContent = track.enabled ? '🎤' : '🎤';
+  btn.classList.toggle('off', !track.enabled);
+});
+
+document.getElementById('btn-cam').addEventListener('click', () => {
+  if (!localStream) return;
+  const track = localStream.getVideoTracks()[0];
+  if (!track) return;
+  track.enabled = !track.enabled;
+  const btn = document.getElementById('btn-cam');
+  btn.classList.toggle('off', !track.enabled);
+});
+
+document.getElementById('btn-speaker').addEventListener('click', () => {
+  const remoteVid = document.getElementById('remote-video');
+  remoteVid.muted = !remoteVid.muted;
+  const btn = document.getElementById('btn-speaker');
+  btn.textContent = remoteVid.muted ? '🔇' : '🔊';
+  btn.classList.toggle('off', remoteVid.muted);
+});
 
 // Modal
 function showModal(message, onYes, onNo) {
