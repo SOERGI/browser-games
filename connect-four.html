@@ -332,6 +332,14 @@
   #modal-no { background: #3a506b; }
   #modal-no:hover { background: #2c3e57; }
 
+  #version {
+    position: fixed;
+    bottom: 4px;
+    right: 4px;
+    font-size: 10px;
+    color: #444;
+  }
+
   @media (max-width: 560px) {
     .cell { width: 44px; height: 44px; }
     .board { gap: 6px; padding: 8px; }
@@ -343,6 +351,7 @@
 </head>
 <body>
 
+<div id="version">v7</div>
 <h1>CONNECT FOUR</h1>
 <div id="status"></div>
 <div class="board" id="board"></div>
