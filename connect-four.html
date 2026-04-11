@@ -539,7 +539,10 @@ function checkWin(row, col) {
 function highlightWin(cells) {
   for (const [r, c] of cells) {
     const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
-    if (cell) cell.classList.add('win');
+    if (cell) {
+      cell.classList.remove('dropping');
+      cell.classList.add('win');
+    }
   }
 }
 
